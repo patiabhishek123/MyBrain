@@ -1,4 +1,5 @@
-import { FormEvent, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
+import type React from "react"
 
 type AuthMode = "login" | "register"
 
@@ -53,7 +54,7 @@ export default function Home() {
     [projects, activeProjectId],
   )
 
-  function handleAuthSubmit(e: FormEvent) {
+  function handleAuthSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     // For now, fake auth only on the client.
     if (!authEmail || !authPassword || (authMode === "register" && !authName)) {
@@ -62,7 +63,7 @@ export default function Home() {
     setIsAuthenticated(true)
   }
 
-  function handleCreateProject(e: FormEvent) {
+  function handleCreateProject(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const trimmed = newProjectName.trim()
     if (!trimmed) return
@@ -83,7 +84,7 @@ export default function Home() {
     setProjects((prev) => prev.map((p) => (p.id === id ? updater(p) : p)))
   }
 
-  function handleAddTextSource(e: FormEvent) {
+  function handleAddTextSource(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     if (!activeProject || !newTextContent.trim()) return
 
@@ -104,7 +105,7 @@ export default function Home() {
     setNewTextContent("")
   }
 
-  function handleAddYoutubeSource(e: FormEvent) {
+  function handleAddYoutubeSource(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     if (!activeProject || !ytUrl.trim()) return
 
@@ -149,7 +150,7 @@ export default function Home() {
     return `I looked through ${project.sources.length} saved sources but couldn't find an obvious match. Once the backend is wired up to an AI model, this answer will use your saved knowledge more deeply.`
   }
 
-  function handleAskQuestion(e: FormEvent) {
+  function handleAskQuestion(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     if (!activeProject || !question.trim()) return
 
