@@ -1,1 +1,1 @@
-export {};
+export * from "./embeddings.service.js";

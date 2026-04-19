@@ -16,7 +16,9 @@ const envSchema = z.object({
   LLM_PROVIDER: z.enum(["openai", "cerebras"]).default("openai"),
   OPENAI_API_KEY: z.string().min(1),
   OPENAI_MODEL: z.string().min(1).default("gpt-4o-mini"),
-  OPENAI_EMBEDDING_MODEL: z.string().min(1).default("text-embedding-3-small")
+  OPENAI_EMBEDDING_MODEL: z.string().min(1).default("text-embedding-3-small"),
+  PINECONE_API_KEY: z.string().min(1),
+  PINECONE_INDEX_NAME: z.string().min(1)
 });
 
 export const env = envSchema.parse(process.env);

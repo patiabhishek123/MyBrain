@@ -12,9 +12,18 @@ export class OpenAiProvider implements LlmProvider {
   }
 
   async generateEmbedding(text: string): Promise<number[]> {
-    const input = text.trim();
-    if (!input) {
-      throw new AppError("Cannot generate embedding for empty text", 400);
+    const [first] = await this.generateEmbeddings([text]);
+    return first;
+  }
+
+  async generateEmbeddings(texts: string[]): Promise<number[][]> {
+    if (texts.length === 0) {
+      return [];
+    }
+
+    const input = texts.map((item) => item.trim()).filter((item) => item.length > 0);
+    if (input.length !== texts.length) {
+      throw new AppError("Cannot generate embeddings for empty text entries", 400);
     }
 
     const response = await this.client.embeddings.create({
@@ -22,12 +31,12 @@ export class OpenAiProvider implements LlmProvider {
       input
     });
 
-    const vector = response.data[0]?.embedding;
-    if (!vector) {
-      throw new AppError("OpenAI embedding response was empty", 502);
+    const vectors = response.data.map((item) => item.embedding);
+    if (vectors.length !== texts.length) {
+      throw new AppError("OpenAI embedding response count mismatch", 502);
     }
 
-    return vector;
+    return vectors;
   }
 
   async generateChatCompletion(prompt: string): Promise<string> {
