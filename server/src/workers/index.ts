@@ -1,1 +1,1 @@
-export {};
+export * from "./ingestion.worker.js";

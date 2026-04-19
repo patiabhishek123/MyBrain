@@ -10,6 +10,7 @@ datasource db {
 enum SourceType {
   FILE
   URL
+  YOUTUBE
   TEXT
   MARKDOWN
   PDF
