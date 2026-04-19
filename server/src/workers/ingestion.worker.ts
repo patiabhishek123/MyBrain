@@ -5,6 +5,7 @@ import { prisma } from "../infrastructure/db/prisma/client.js";
 import { redisConnection } from "../infrastructure/queue/bullmq/connection.js";
 import { embeddingsQueue, QUEUE_NAMES } from "../infrastructure/queue/bullmq/queues.js";
 import { AppError } from "../shared/errors/AppError.js";
+import { chunkTextByTokens } from "../shared/utils/textChunker.js";
 import { embeddingJobSchema, sourceIngestionJobSchema, type SourceIngestionJob } from "../modules/ingestion/ingestion.jobs.js";
 
 const htmlStripRegex = /<[^>]*>/g;
@@ -16,31 +17,6 @@ const normalizeText = (text: string): string => {
     .replace(/\n{3,}/g, "\n\n")
     .replace(/\s{2,}/g, " ")
     .trim();
-};
-
-const chunkText = (text: string, chunkSize = 1_200, overlap = 200): string[] => {
-  if (!text.trim()) {
-    return [];
-  }
-
-  const chunks: string[] = [];
-  let start = 0;
-
-  while (start < text.length) {
-    const end = Math.min(start + chunkSize, text.length);
-    const slice = text.slice(start, end).trim();
-    if (slice.length > 0) {
-      chunks.push(slice);
-    }
-
-    if (end === text.length) {
-      break;
-    }
-
-    start = Math.max(0, end - overlap);
-  }
-
-  return chunks;
 };
 
 const extractSourceContent = async (source: Source): Promise<string> => {
@@ -109,7 +85,10 @@ const processIngestionJob = async (job: Job<SourceIngestionJob>) => {
   try {
     const extracted = await extractSourceContent(source);
     const cleaned = normalizeText(extracted);
-    const chunks = chunkText(cleaned);
+    const chunks = chunkTextByTokens(cleaned, {
+      chunkSizeTokens: 800,
+      overlapTokens: 150
+    });
 
     await prisma.$transaction(async (tx) => {
       await tx.documentChunk.deleteMany({
@@ -125,11 +104,13 @@ const processIngestionJob = async (job: Job<SourceIngestionJob>) => {
             projectId: source.projectId,
             sourceId: source.id,
             chunkIndex: index,
-            content: chunk,
-            tokenCount: Math.ceil(chunk.length / 4),
+            content: chunk.content,
+            tokenCount: chunk.tokenCount,
             status: ResourceStatus.PROCESSING,
             metadata: {
               stage: "chunked",
+              chunkSizeTokens: 800,
+              overlapTokens: 150,
               sourceVersion: data.sourceVersion
             }
           }))
