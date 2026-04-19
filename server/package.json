@@ -1,38 +1,36 @@
 {
   "name": "mybrain-server",
   "version": "1.0.0",
-  "description": "Production-grade RAG backend for MyBrain",
-  "main": "dist/index.js",
-  "scripts": {
-    "build": "tsc -b",
-    "start": "node dist/index.js",
-    "dev": "tsx watch src/index.ts",
-    "prisma:migrate": "prisma migrate dev",
-    "prisma:generate": "prisma generate",
-    "prisma:studio": "prisma studio",
-    "lint": "eslint src --ext .ts",
-    "type-check": "tsc --noEmit"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "private": true,
   "type": "module",
-  "devDependencies": {
-    "@types/express": "^5.0.6",
-    "@types/node": "^20.10.6",
-    "tsx": "^4.21.0",
-    "typescript": "^5.9.3",
-    "prisma": "^5.8.0"
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/main.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate:dev": "prisma migrate dev",
+    "prisma:migrate:deploy": "prisma migrate deploy"
   },
   "dependencies": {
-    "@prisma/client": "^5.8.0",
-    "@openai/sdk": "^4.38.0",
-    "bullmq": "^5.7.0",
-    "dotenv": "^16.3.1",
-    "express": "^5.2.1",
-    "jsonwebtoken": "^9.0.3",
-    "ts-node": "^10.9.2",
-    "bcryptjs": "^2.4.3",
-    "uuid": "^9.0.1"
+    "@prisma/adapter-pg": "^6.6.0",
+    "@prisma/client": "^6.6.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "helmet": "^7.1.0",
+    "morgan": "^1.10.0",
+    "pg": "^8.13.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/morgan": "^1.9.9",
+    "@types/node": "^22.10.2",
+    "@types/pg": "^8.11.10",
+    "prisma": "^6.6.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
   }
 }
