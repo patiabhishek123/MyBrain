@@ -4,6 +4,7 @@ import helmet from "helmet";
 import morgan from "morgan";
 
 import { authRouter } from "./modules/auth/auth.route.js";
+import { chatRouter } from "./modules/chat/chat.route.js";
 import { projectsRouter } from "./modules/projects/projects.route.js";
 import { sourcesRouter } from "./modules/sources/sources.route.js";
 import { errorMiddleware } from "./shared/middleware/error.middleware.js";
@@ -22,5 +23,6 @@ app.use("/health", healthRouter);
 app.use("/auth", authRouter);
 app.use("/projects", projectsRouter);
 app.use(sourcesRouter);
+app.use(chatRouter);
 
 app.use(errorMiddleware);
