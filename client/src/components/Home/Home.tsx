@@ -1,10 +1,15 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import type React from "react"
-import { ApiClientError, post } from "../../apiClient"
+import { ApiClientError, get, post } from "../../apiClient"
 
 type AuthMode = "login" | "register"
 
-type SourceType = "text" | "youtube"
+const SourceType = {
+  TEXT: "TEXT",
+  YOUTUBE: "YOUTUBE",
+} as const
+
+type SourceType = (typeof SourceType)[keyof typeof SourceType]
 
 interface Source {
   id: string
@@ -24,8 +29,18 @@ interface ChatMessage {
 interface Project {
   id: string
   name: string
+  slug?: string
   sources: Source[]
   messages: ChatMessage[]
+}
+
+interface ApiProject {
+  id: string
+  ownerId: string
+  name: string
+  slug: string
+  createdAt: string
+  updatedAt: string
 }
 
 function createId(prefix: string) {
@@ -42,6 +57,8 @@ export default function Home() {
   const [authPassword, setAuthPassword] = useState("")
 
   const [projects, setProjects] = useState<Project[]>([])
+  const [projectsLoading, setProjectsLoading] = useState(false)
+  const [projectsError, setProjectsError] = useState<string | null>(null)
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
   const [newProjectName, setNewProjectName] = useState("")
 
@@ -49,6 +66,8 @@ export default function Home() {
   const [newTextContent, setNewTextContent] = useState("")
   const [ytTitle, setYtTitle] = useState("")
   const [ytUrl, setYtUrl] = useState("")
+  const [sourceLoading, setSourceLoading] = useState(false)
+  const [sourceError, setSourceError] = useState<string | null>(null)
 
   const [question, setQuestion] = useState("")
 
@@ -111,67 +130,197 @@ export default function Home() {
     }
   }
 
-  function handleCreateProject(e: React.FormEvent<HTMLFormElement>) {
+  useEffect(() => {
+    if (localStorage.getItem("accessToken")) {
+      setIsAuthenticated(true)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+
+    let isMounted = true
+
+    const loadProjects = async () => {
+      setProjectsLoading(true)
+      setProjectsError(null)
+
+      try {
+        const response = await get<{
+          success: boolean
+          data: { projects: ApiProject[] }
+          error: unknown
+        }>("/projects")
+
+        if (!response.success) {
+          throw new Error("Failed to fetch projects")
+        }
+
+        if (!isMounted) return
+
+        const mappedProjects: Project[] = response.data.projects.map((project) => ({
+          id: project.id,
+          name: project.name,
+          slug: project.slug,
+          sources: [],
+          messages: [],
+        }))
+
+        setProjects(mappedProjects)
+        setActiveProjectId((prev) => prev ?? mappedProjects[0]?.id ?? null)
+      } catch (error) {
+        if (!isMounted) return
+        if (error instanceof ApiClientError) {
+          setProjectsError(error.message)
+        } else {
+          setProjectsError("Failed to load projects.")
+        }
+      } finally {
+        if (isMounted) {
+          setProjectsLoading(false)
+        }
+      }
+    }
+
+    void loadProjects()
+
+    return () => {
+      isMounted = false
+    }
+  }, [isAuthenticated])
+
+  async function handleCreateProject(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const trimmed = newProjectName.trim()
     if (!trimmed) return
 
-    const project: Project = {
-      id: createId("proj"),
-      name: trimmed,
-      sources: [],
-      messages: [],
-    }
+    setProjectsError(null)
 
-    setProjects((prev) => [...prev, project])
-    setActiveProjectId(project.id)
-    setNewProjectName("")
+    try {
+      const response = await post<{
+        success: boolean
+        data: { project: ApiProject }
+        error: unknown
+      }, { name: string }>("/projects", { name: trimmed })
+
+      if (!response.success) {
+        throw new Error("Failed to create project")
+      }
+
+      const project: Project = {
+        id: response.data.project.id,
+        name: response.data.project.name,
+        slug: response.data.project.slug,
+        sources: [],
+        messages: [],
+      }
+
+      setProjects((prev) => [project, ...prev])
+      setActiveProjectId(project.id)
+      setNewProjectName("")
+    } catch (error) {
+      if (error instanceof ApiClientError) {
+        setProjectsError(error.message)
+      } else {
+        setProjectsError("Failed to create project.")
+      }
+    }
   }
 
   function updateProject(id: string, updater: (project: Project) => Project) {
     setProjects((prev) => prev.map((p) => (p.id === id ? updater(p) : p)))
   }
 
-  function handleAddTextSource(e: React.FormEvent<HTMLFormElement>) {
+  async function handleAddTextSource(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     if (!activeProject || !newTextContent.trim()) return
 
-    const source: Source = {
-      id: createId("src"),
-      type: "text",
-      title: newTextTitle.trim() || "Untitled note",
-      content: newTextContent.trim(),
-      createdAt: new Date().toISOString(),
+    setSourceLoading(true)
+    setSourceError(null)
+
+    try {
+      const payload = {
+        type: SourceType.TEXT,
+        title: newTextTitle.trim() || "Untitled note",
+        metadata: {
+          rawText: newTextContent.trim(),
+        },
+      }
+
+      const response = await post<{ sourceId: string; status: string }, typeof payload>(
+        `/projects/${activeProject.id}/sources`,
+        payload,
+      )
+
+      const source: Source = {
+        id: response.sourceId || createId("src"),
+        type: SourceType.TEXT,
+        title: payload.title,
+        content: newTextContent.trim(),
+        createdAt: new Date().toISOString(),
+      }
+
+      updateProject(activeProject.id, (p) => ({
+        ...p,
+        sources: [source, ...p.sources],
+      }))
+
+      setNewTextTitle("")
+      setNewTextContent("")
+    } catch (error) {
+      if (error instanceof ApiClientError) {
+        setSourceError(error.message)
+      } else {
+        setSourceError("Failed to add text source.")
+      }
+    } finally {
+      setSourceLoading(false)
     }
-
-    updateProject(activeProject.id, (p) => ({
-      ...p,
-      sources: [source, ...p.sources],
-    }))
-
-    setNewTextTitle("")
-    setNewTextContent("")
   }
 
-  function handleAddYoutubeSource(e: React.FormEvent<HTMLFormElement>) {
+  async function handleAddYoutubeSource(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     if (!activeProject || !ytUrl.trim()) return
 
-    const source: Source = {
-      id: createId("src"),
-      type: "youtube",
-      title: ytTitle.trim() || "YouTube video",
-      content: ytUrl.trim(),
-      createdAt: new Date().toISOString(),
+    setSourceLoading(true)
+    setSourceError(null)
+
+    try {
+      const payload = {
+        type: SourceType.YOUTUBE,
+        title: ytTitle.trim() || "YouTube video",
+        externalRef: ytUrl.trim(),
+      }
+
+      const response = await post<{ sourceId: string; status: string }, typeof payload>(
+        `/projects/${activeProject.id}/sources`,
+        payload,
+      )
+
+      const source: Source = {
+        id: response.sourceId || createId("src"),
+        type: SourceType.YOUTUBE,
+        title: payload.title,
+        content: payload.externalRef,
+        createdAt: new Date().toISOString(),
+      }
+
+      updateProject(activeProject.id, (p) => ({
+        ...p,
+        sources: [source, ...p.sources],
+      }))
+
+      setYtTitle("")
+      setYtUrl("")
+    } catch (error) {
+      if (error instanceof ApiClientError) {
+        setSourceError(error.message)
+      } else {
+        setSourceError("Failed to add YouTube source.")
+      }
+    } finally {
+      setSourceLoading(false)
     }
-
-    updateProject(activeProject.id, (p) => ({
-      ...p,
-      sources: [source, ...p.sources],
-    }))
-
-    setYtTitle("")
-    setYtUrl("")
   }
 
   function generateAssistantReply(project: Project, userQuestion: string): string {
@@ -182,7 +331,7 @@ export default function Home() {
     const lowerQ = userQuestion.toLowerCase()
     const words = lowerQ.split(/\s+/).filter((w) => w.length > 3)
 
-    const textSources = project.sources.filter((s) => s.type === "text")
+    const textSources = project.sources.filter((s) => s.type === SourceType.TEXT)
     for (const source of textSources) {
       const lc = source.content.toLowerCase()
       const match = words.find((w) => lc.includes(w))
@@ -363,7 +512,11 @@ export default function Home() {
           </form>
 
           <div className="mt-4 space-y-1.5">
-            {projects.length === 0 ? (
+            {projectsLoading ? (
+              <p className="text-xs text-slate-400">
+                Loading projects...
+              </p>
+            ) : projects.length === 0 ? (
               <p className="text-xs text-slate-400">
                 No projects yet. Create your first topic folder.
               </p>
@@ -393,6 +546,10 @@ export default function Home() {
                   )}
                 </button>
               ))
+            )}
+
+            {projectsError && (
+              <p className="pt-1 text-xs text-red-600">{projectsError}</p>
             )}
           </div>
         </aside>
@@ -446,9 +603,10 @@ export default function Home() {
                       />
                       <button
                         type="submit"
+                        disabled={sourceLoading}
                         className="rounded-2xl bg-slate-900 px-4 py-1.5 text-xs font-semibold text-slate-50 hover:bg-slate-800"
                       >
-                        Add note to knowledge
+                        {sourceLoading ? "Saving..." : "Add note to knowledge"}
                       </button>
                     </form>
                   </section>
@@ -474,13 +632,18 @@ export default function Home() {
                       />
                       <button
                         type="submit"
+                        disabled={sourceLoading}
                         className="rounded-2xl bg-slate-900 px-4 py-1.5 text-xs font-semibold text-slate-50 hover:bg-slate-800"
                       >
-                        Save YouTube link
+                        {sourceLoading ? "Saving..." : "Save YouTube link"}
                       </button>
                     </form>
                   </section>
                 </div>
+
+                {sourceError && (
+                  <p className="mt-3 text-xs text-red-600">{sourceError}</p>
+                )}
 
                 <div className="mt-4">
                   <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -502,10 +665,10 @@ export default function Home() {
                               {s.title}
                             </p>
                             <p className="truncate text-[10px] text-slate-500">
-                              {s.type === "text" ? "Text note" : "YouTube link"}
+                              {s.type === SourceType.TEXT ? "Text note" : "YouTube link"}
                             </p>
                           </div>
-                          {s.type === "youtube" && (
+                          {s.type === SourceType.YOUTUBE && (
                             <a
                               href={s.content}
                               target="_blank"
