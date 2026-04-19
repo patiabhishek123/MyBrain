@@ -1,0 +1,123 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============ Auth Module ============
+model User {
+  id        String     @id @default(cuid())
+  email     String     @unique
+  password  String
+  name      String?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  projects  Project[]
+  chats     Chat[]
+
+  @@map("users")
+}
+
+// ============ Projects Module ============
+model Project {
+  id        String     @id @default(cuid())
+  name      String
+  description String?
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  sources   Source[]
+  chats     Chat[]
+  embeddings Embedding[]
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("projects")
+}
+
+// ============ Sources Module ============
+model Source {
+  id        String     @id @default(cuid())
+  title     String
+  type      SourceType
+  content   String
+  metadata  Json       @default("{}")
+  projectId String
+  project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  embeddings Embedding[]
+
+  @@index([projectId])
+  @@map("sources")
+}
+
+enum SourceType {
+  TEXT
+  URL
+  YOUTUBE
+  PDF
+  FILE
+}
+
+// ============ Embeddings Module ============
+model Embedding {
+  id        String     @id @default(cuid())
+  vector    Float[]
+  text      String
+  sourceId  String
+  source    Source     @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  projectId String
+  project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  metadata  Json       @default("{}")
+  createdAt DateTime   @default(now())
+
+  @@index([sourceId])
+  @@index([projectId])
+  @@map("embeddings")
+}
+
+// ============ Chat Module ============
+model Chat {
+  id        String     @id @default(cuid())
+  title     String?
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId String
+  project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  messages  ChatMessage[]
+
+  @@index([userId])
+  @@index([projectId])
+  @@map("chats")
+}
+
+model ChatMessage {
+  id        String     @id @default(cuid())
+  role      MessageRole
+  content   String
+  chatId    String
+  chat      Chat       @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  createdAt DateTime   @default(now())
+
+  @@index([chatId])
+  @@map("chat_messages")
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+}
