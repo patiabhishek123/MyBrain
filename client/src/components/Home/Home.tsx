@@ -482,8 +482,7 @@ export default function Home() {
           </form>
 
           <p className="mt-4 text-[11px] text-slate-400">
-            This is a frontend-only prototype. In a later step we can connect it
-            to your real authentication and AI backend.
+            I help you to remember thingd you saw in past 
           </p>
         </div>
       </div>
