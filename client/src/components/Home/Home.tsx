@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react"
 import type React from "react"
+import { ApiClientError, post } from "../../apiClient"
 
 type AuthMode = "login" | "register"
 
@@ -34,6 +35,8 @@ function createId(prefix: string) {
 export default function Home() {
   const [authMode, setAuthMode] = useState<AuthMode>("login")
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [authLoading, setAuthLoading] = useState(false)
+  const [authError, setAuthError] = useState<string | null>(null)
   const [authName, setAuthName] = useState("")
   const [authEmail, setAuthEmail] = useState("")
   const [authPassword, setAuthPassword] = useState("")
@@ -54,13 +57,58 @@ export default function Home() {
     [projects, activeProjectId],
   )
 
-  function handleAuthSubmit(e: React.FormEvent<HTMLFormElement>) {
+  async function handleAuthSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    // For now, fake auth only on the client.
+
     if (!authEmail || !authPassword || (authMode === "register" && !authName)) {
       return
     }
-    setIsAuthenticated(true)
+
+    setAuthLoading(true)
+    setAuthError(null)
+
+    try {
+      type AuthApiResponse = {
+        user: {
+          id: string
+          email: string
+          name: string | null
+        }
+        tokens: {
+          accessToken: string
+          refreshToken: string
+        }
+      }
+
+      const endpoint = authMode === "login" ? "/auth/login" : "/auth/register"
+      const payload =
+        authMode === "login"
+          ? {
+              email: authEmail,
+              password: authPassword,
+            }
+          : {
+              name: authName,
+              email: authEmail,
+              password: authPassword,
+            }
+
+      const response = await post<AuthApiResponse, typeof payload>(endpoint, payload)
+
+      localStorage.setItem("accessToken", response.tokens.accessToken)
+      localStorage.setItem("refreshToken", response.tokens.refreshToken)
+
+      setAuthName(response.user.name ?? "")
+      setIsAuthenticated(true)
+    } catch (error) {
+      if (error instanceof ApiClientError) {
+        setAuthError(error.message)
+      } else {
+        setAuthError("Authentication failed. Please try again.")
+      }
+    } finally {
+      setAuthLoading(false)
+    }
   }
 
   function handleCreateProject(e: React.FormEvent<HTMLFormElement>) {
@@ -261,10 +309,19 @@ export default function Home() {
 
             <button
               type="submit"
+              disabled={authLoading}
               className="mt-2 w-full rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-50 shadow-sm transition hover:bg-slate-800"
             >
-              {authMode === "login" ? "Enter MyBrain" : "Create MyBrain account"}
+              {authLoading
+                ? "Please wait..."
+                : authMode === "login"
+                ? "Enter MyBrain"
+                : "Create MyBrain account"}
             </button>
+
+            {authError && (
+              <p className="text-xs text-red-600">{authError}</p>
+            )}
           </form>
 
           <p className="mt-4 text-[11px] text-slate-400">
