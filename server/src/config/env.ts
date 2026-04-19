@@ -12,7 +12,11 @@ const envSchema = z.object({
   JWT_REFRESH_SECRET: z.string().min(32),
   JWT_ACCESS_EXPIRES_IN: z.string().default("15m"),
   JWT_REFRESH_EXPIRES_IN: z.string().default("30d"),
-  BCRYPT_SALT_ROUNDS: z.coerce.number().int().min(10).max(14).default(12)
+  BCRYPT_SALT_ROUNDS: z.coerce.number().int().min(10).max(14).default(12),
+  LLM_PROVIDER: z.enum(["openai", "cerebras"]).default("openai"),
+  OPENAI_API_KEY: z.string().min(1),
+  OPENAI_MODEL: z.string().min(1).default("gpt-4o-mini"),
+  OPENAI_EMBEDDING_MODEL: z.string().min(1).default("text-embedding-3-small")
 });
 
 export const env = envSchema.parse(process.env);
