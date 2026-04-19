@@ -4,7 +4,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-
+  url      = env("DATABASE_URL")
 }
 
 enum SourceType {
@@ -41,8 +41,31 @@ model User {
 
   projects     Project[]
   chatSessions ChatSession[]
+  refreshTokens RefreshToken[]
 
   @@index([deletedAt])
+}
+
+model RefreshToken {
+  id                String   @id @default(cuid())
+  userId            String
+  jti               String   @unique
+  tokenHash         String
+  expiresAt         DateTime
+  revokedAt         DateTime?
+  replacedByTokenId String?
+  createdByIp       String?
+  userAgent         String?
+  metadata          Json?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([revokedAt])
+  @@index([userId, revokedAt])
 }
 
 model Project {
