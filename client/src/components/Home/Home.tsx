@@ -70,6 +70,8 @@ export default function Home() {
   const [sourceError, setSourceError] = useState<string | null>(null)
 
   const [question, setQuestion] = useState("")
+  const [chatLoading, setChatLoading] = useState(false)
+  const [chatError, setChatError] = useState<string | null>(null)
 
   const activeProject = useMemo(
     () => projects.find((p) => p.id === activeProjectId) ?? null,
@@ -323,35 +325,13 @@ export default function Home() {
     }
   }
 
-  function generateAssistantReply(project: Project, userQuestion: string): string {
-    if (!project.sources.length) {
-      return "You haven't added any knowledge sources yet for this project. Add notes or YouTube links on the left, then ask again."
-    }
-
-    const lowerQ = userQuestion.toLowerCase()
-    const words = lowerQ.split(/\s+/).filter((w) => w.length > 3)
-
-    const textSources = project.sources.filter((s) => s.type === SourceType.TEXT)
-    for (const source of textSources) {
-      const lc = source.content.toLowerCase()
-      const match = words.find((w) => lc.includes(w))
-      if (match) {
-        const idx = lc.indexOf(match)
-        const start = Math.max(0, idx - 80)
-        const end = Math.min(source.content.length, idx + 240)
-        const excerpt = source.content.slice(start, end)
-        return `Based on your note "${source.title}", this seems relevant:\n\n${excerpt}...\n\n(This is a simple preview. The real backend can plug an LLM here.)`
-      }
-    }
-
-    return `I looked through ${project.sources.length} saved sources but couldn't find an obvious match. Once the backend is wired up to an AI model, this answer will use your saved knowledge more deeply.`
-  }
-
-  function handleAskQuestion(e: React.FormEvent<HTMLFormElement>) {
+  async function handleAskQuestion(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     if (!activeProject || !question.trim()) return
 
     const trimmed = question.trim()
+    setChatError(null)
+
     const userMessage: ChatMessage = {
       id: createId("msg"),
       from: "user",
@@ -359,21 +339,49 @@ export default function Home() {
       createdAt: new Date().toISOString(),
     }
 
-    const replyText = generateAssistantReply(activeProject, trimmed)
-
-    const assistantMessage: ChatMessage = {
-      id: createId("msg"),
-      from: "assistant",
-      text: replyText,
-      createdAt: new Date().toISOString(),
-    }
-
     updateProject(activeProject.id, (p) => ({
       ...p,
-      messages: [...p.messages, userMessage, assistantMessage],
+      messages: [...p.messages, userMessage],
     }))
 
     setQuestion("")
+    setChatLoading(true)
+
+    try {
+      const response = await post<{ answer: string; sources: unknown[] }, { query: string }>(
+        `/projects/${activeProject.id}/chat`,
+        { query: trimmed },
+      )
+
+      const assistantMessage: ChatMessage = {
+        id: createId("msg"),
+        from: "assistant",
+        text: response.answer,
+        createdAt: new Date().toISOString(),
+      }
+
+      updateProject(activeProject.id, (p) => ({
+        ...p,
+        messages: [...p.messages, assistantMessage],
+      }))
+    } catch (error) {
+      const message = error instanceof ApiClientError ? error.message : "Failed to get answer from backend."
+      setChatError(message)
+
+      const assistantMessage: ChatMessage = {
+        id: createId("msg"),
+        from: "assistant",
+        text: `I couldn't complete your request right now. ${message}`,
+        createdAt: new Date().toISOString(),
+      }
+
+      updateProject(activeProject.id, (p) => ({
+        ...p,
+        messages: [...p.messages, assistantMessage],
+      }))
+    } finally {
+      setChatLoading(false)
+    }
   }
 
   if (!isAuthenticated) {
@@ -739,6 +747,10 @@ export default function Home() {
                   onSubmit={handleAskQuestion}
                   className="border-t border-slate-100 p-3"
                 >
+                  {chatError && (
+                    <p className="mb-2 text-xs text-red-600">{chatError}</p>
+                  )}
+
                   <div className="flex items-end gap-2 rounded-3xl bg-slate-50 px-3 py-2 ring-1 ring-slate-200 focus-within:ring-slate-400">
                     <textarea
                       value={question}
@@ -748,10 +760,10 @@ export default function Home() {
                     />
                     <button
                       type="submit"
-                      disabled={!question.trim()}
+                      disabled={!question.trim() || chatLoading}
                       className="mb-1 inline-flex items-center justify-center rounded-2xl bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-50 disabled:opacity-40"
                     >
-                      Send
+                      {chatLoading ? "Thinking..." : "Send"}
                     </button>
                   </div>
                 </form>
