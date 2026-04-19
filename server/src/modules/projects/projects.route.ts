@@ -14,4 +14,6 @@ const requireProjectScope = createRequireProjectScope(projectAccessService);
 
 export const projectsRouter = Router();
 
+projectsRouter.post("/", requireAuth, asyncHandler(projectsController.createProject));
+projectsRouter.get("/", requireAuth, asyncHandler(projectsController.listProjects));
 projectsRouter.get("/:projectId", requireAuth, requireProjectScope, asyncHandler(projectsController.getCurrentProject));
