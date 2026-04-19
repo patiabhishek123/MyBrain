@@ -5,5 +5,9 @@ declare module "express-serve-static-core" {
     authUser: {
       id: string;
     };
+    projectScope: {
+      userId: string;
+      projectId: string;
+    };
   }
 }
