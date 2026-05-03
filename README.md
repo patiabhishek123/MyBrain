@@ -42,10 +42,5 @@ Once sources have been added, the user can ask questions via a chat interface. T
 
 The project is split into a `client` (React + Vite) and `server` (Node/TypeScript) components. The client handles the UI, while the server manages authentication and data storage.
 
-## Deployment
-
-To deploy to services like Vercel, run the build commands for both client and server, ensuring TypeScript checks pass and unused imports are removed.
-
----
 
 This README provides essential instructions and context for understanding and working with the MyBrain application.
